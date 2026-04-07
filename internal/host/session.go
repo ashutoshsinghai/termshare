@@ -12,6 +12,7 @@ import (
 
 	"github.com/ashutoshsinghai/termshare/internal/protocol"
 	"github.com/creack/pty"
+	"golang.org/x/term"
 )
 
 type approvalRequest struct {
@@ -35,7 +36,6 @@ func Start(ctx context.Context, port int, code string) error {
 
 	approvalCh := make(chan approvalRequest, 1)
 
-	// Accept loop — validates join code then queues approval request
 	go func() {
 		for {
 			conn, err := ln.Accept()
@@ -55,12 +55,9 @@ func Start(ctx context.Context, port int, code string) error {
 					c.Close()
 					return
 				}
-				// Tell client to wait
 				protocol.WriteMessage(c, protocol.MsgPending, nil)
-
 				approve := make(chan bool, 1)
 				approvalCh <- approvalRequest{conn: c, from: from, approve: approve}
-
 				if !<-approve {
 					protocol.WriteMessage(c, protocol.MsgAuthFail, []byte("host rejected the connection"))
 					c.Close()
@@ -69,7 +66,6 @@ func Start(ctx context.Context, port int, code string) error {
 		}
 	}()
 
-	// Approval loop — runs in main goroutine, reads stdin
 	stdin := bufio.NewReader(os.Stdin)
 	for {
 		select {
@@ -81,8 +77,9 @@ func Start(ctx context.Context, port int, code string) error {
 			line = strings.TrimSpace(strings.ToLower(line))
 			if line == "y" {
 				req.approve <- true
-				fmt.Printf("[+] Connected: %s\n", req.from)
-				go runSession(req.conn, req.from)
+				fmt.Printf("[+] Session started with %s\n", req.from)
+				runSession(req.conn, req.from)
+				fmt.Printf("[+] Waiting for next connection... (Ctrl+C to stop)\n")
 			} else {
 				req.approve <- false
 				fmt.Printf("[-] Rejected: %s\n", req.from)
@@ -92,10 +89,7 @@ func Start(ctx context.Context, port int, code string) error {
 }
 
 func runSession(conn net.Conn, from string) {
-	defer func() {
-		conn.Close()
-		fmt.Printf("[-] Disconnected: %s\n", from)
-	}()
+	defer conn.Close()
 
 	if err := protocol.WriteMessage(conn, protocol.MsgAuthOK, nil); err != nil {
 		return
@@ -111,19 +105,50 @@ func runSession(conn net.Conn, from string) {
 		fmt.Fprintf(os.Stderr, "failed to start pty: %v\n", err)
 		return
 	}
-	defer ptmx.Close()
 	defer cmd.Process.Kill()
+	defer ptmx.Close()
 
-	var wg sync.WaitGroup
+	// Set initial PTY size from host terminal
+	fd := int(os.Stdin.Fd())
+	if cols, rows, err := term.GetSize(fd); err == nil {
+		pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
+	}
 
-	wg.Add(1)
+	// Put host terminal in raw mode for the duration of the session
+	oldState, err := term.MakeRaw(fd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to set raw mode: %v\n", err)
+		return
+	}
+	defer term.Restore(fd, oldState)
+
+	done := make(chan struct{})
+	var once sync.Once
+	finish := func() { once.Do(func() { close(done) }) }
+
+	// PTY output → host stdout + client
 	go func() {
-		defer wg.Done()
+		defer finish()
 		buf := make([]byte, 4096)
 		for {
 			n, err := ptmx.Read(buf)
 			if n > 0 {
-				if writeErr := protocol.WriteMessage(conn, protocol.MsgOutput, buf[:n]); writeErr != nil {
+				os.Stdout.Write(buf[:n])
+				protocol.WriteMessage(conn, protocol.MsgOutput, buf[:n])
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	// Host stdin → PTY
+	go func() {
+		buf := make([]byte, 256)
+		for {
+			n, err := os.Stdin.Read(buf)
+			if n > 0 {
+				if _, werr := ptmx.Write(buf[:n]); werr != nil {
 					return
 				}
 			}
@@ -133,9 +158,9 @@ func runSession(conn net.Conn, from string) {
 		}
 	}()
 
-	wg.Add(1)
+	// Client messages → PTY
 	go func() {
-		defer wg.Done()
+		defer finish()
 		for {
 			msgType, payload, err := protocol.ReadMessage(conn)
 			if err != nil {
@@ -156,5 +181,6 @@ func runSession(conn net.Conn, from string) {
 		}
 	}()
 
-	wg.Wait()
+	<-done
+	fmt.Printf("\n[-] Disconnected: %s\n", from)
 }
