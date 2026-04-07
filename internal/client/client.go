@@ -33,7 +33,7 @@ func Connect(addr string, code string) error {
 		return fmt.Errorf("authentication failed: %s", string(payload))
 	}
 
-	fmt.Println("Connected. Press Ctrl+C to exit.")
+	fmt.Println("Connected. Press Ctrl+\\ to disconnect.")
 
 	// Put local terminal in raw mode
 	fd := int(os.Stdin.Fd())
@@ -62,13 +62,18 @@ func Connect(addr string, code string) error {
 		}
 	}()
 
-	// stdin → server
+	// stdin → server (Ctrl+\ disconnects locally)
 	go func() {
 		defer close(done)
 		buf := make([]byte, 256)
 		for {
 			n, err := os.Stdin.Read(buf)
 			if n > 0 {
+				// 0x1c is Ctrl+\, intercept as local disconnect
+				if n == 1 && buf[0] == 0x1c {
+					conn.Close()
+					return
+				}
 				if writeErr := protocol.WriteMessage(conn, protocol.MsgInput, buf[:n]); writeErr != nil {
 					return
 				}
