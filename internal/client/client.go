@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/ashutoshsinghai/termshare/internal/protocol"
 	"golang.org/x/term"
@@ -43,24 +41,11 @@ func Connect(addr string, code string) error {
 	}
 	defer term.Restore(fd, oldState)
 
-	// Watch for terminal resize signals
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGWINCH)
 	sendResize(conn, fd)
 
 	done := make(chan struct{})
 
-	// Relay resize events
-	go func() {
-		for {
-			select {
-			case <-sigCh:
-				sendResize(conn, fd)
-			case <-done:
-				return
-			}
-		}
-	}()
+	go watchResize(conn, fd, done)
 
 	// stdin → server (Ctrl+\ disconnects locally)
 	go func() {
