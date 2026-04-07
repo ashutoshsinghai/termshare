@@ -100,7 +100,6 @@ func runSession(conn net.Conn, from string) {
 		shell = "/bin/sh"
 	}
 	cmd := exec.Command(shell)
-	cmd.Dir = os.Getenv("HOME")
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
