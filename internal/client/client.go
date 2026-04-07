@@ -22,13 +22,20 @@ func Connect(addr string, code string) error {
 		return fmt.Errorf("failed to send auth: %w", err)
 	}
 
-	// Wait for auth response
-	msgType, payload, err := protocol.ReadMessage(conn)
-	if err != nil {
-		return fmt.Errorf("auth response error: %w", err)
-	}
-	if msgType == protocol.MsgAuthFail {
-		return fmt.Errorf("authentication failed: %s", string(payload))
+	// Wait for auth response (may get MsgPending first)
+	for {
+		msgType, payload, err := protocol.ReadMessage(conn)
+		if err != nil {
+			return fmt.Errorf("auth response error: %w", err)
+		}
+		if msgType == protocol.MsgPending {
+			fmt.Println("Waiting for host approval...")
+			continue
+		}
+		if msgType == protocol.MsgAuthFail {
+			return fmt.Errorf("connection rejected: %s", string(payload))
+		}
+		break // MsgAuthOK
 	}
 
 	fmt.Println("Connected. Press Ctrl+\\ to disconnect.")

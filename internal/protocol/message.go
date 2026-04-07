@@ -15,6 +15,7 @@ const (
 	MsgInput    MsgType = 0x04
 	MsgOutput   MsgType = 0x05
 	MsgResize   MsgType = 0x06
+	MsgPending  MsgType = 0x07
 )
 
 // WriteMessage writes a framed message: [1 byte type][4 bytes len][N bytes payload]
