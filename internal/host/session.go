@@ -101,19 +101,20 @@ func runSession(conn net.Conn, from string) {
 	}
 	cmd := exec.Command(shell)
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
-	ptmx, err := pty.Start(cmd)
+
+	// Get host terminal size before starting the PTY so zsh renders correctly from the start
+	fd := int(os.Stdin.Fd())
+	cols, rows, err := term.GetSize(fd)
+	if err != nil {
+		cols, rows = 80, 24
+	}
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to start pty: %v\n", err)
 		return
 	}
 	defer cmd.Process.Kill()
 	defer ptmx.Close()
-
-	// Set initial PTY size from host terminal
-	fd := int(os.Stdin.Fd())
-	if cols, rows, err := term.GetSize(fd); err == nil {
-		pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
-	}
 
 	// Put host terminal in raw mode for the duration of the session
 	oldState, err := term.MakeRaw(fd)

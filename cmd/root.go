@@ -6,6 +6,9 @@ var rootCmd = &cobra.Command{
 	Use:   "termshare",
 	Short: "Share terminal sessions over LAN instantly",
 	Long:  "termshare lets you host and join terminal sessions across devices on the same network — no config required.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runJoin(joinCmd, nil)
+	},
 }
 
 func Execute() error {
@@ -16,4 +19,6 @@ func init() {
 	rootCmd.AddCommand(hostCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(joinCmd)
+	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(upgradeCmd)
 }
