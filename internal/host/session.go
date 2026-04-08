@@ -22,7 +22,7 @@ type approvalRequest struct {
 }
 
 // Start listens for incoming connections and handles approvals interactively.
-func Start(ctx context.Context, port int, code string) error {
+func Start(ctx context.Context, port int, code string, readOnly bool) error {
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return fmt.Errorf("failed to listen on port %d: %w", port, err)
@@ -78,7 +78,7 @@ func Start(ctx context.Context, port int, code string) error {
 			if line == "y" {
 				req.approve <- true
 				fmt.Printf("[+] Session started with %s\n", req.from)
-				runSession(req.conn, req.from)
+				runSession(req.conn, req.from, readOnly)
 				fmt.Printf("[+] Waiting for next connection... (Ctrl+C to stop)\n")
 			} else {
 				req.approve <- false
@@ -88,9 +88,14 @@ func Start(ctx context.Context, port int, code string) error {
 	}
 }
 
-func runSession(conn net.Conn, from string) {
+func runSession(conn net.Conn, from string, readOnly bool) {
 	defer conn.Close()
 
+	if readOnly {
+		if err := protocol.WriteMessage(conn, protocol.MsgReadOnly, nil); err != nil {
+			return
+		}
+	}
 	if err := protocol.WriteMessage(conn, protocol.MsgAuthOK, nil); err != nil {
 		return
 	}
@@ -160,7 +165,7 @@ func runSession(conn net.Conn, from string) {
 		}
 	}()
 
-	// Client messages → PTY
+	// Client messages → PTY (input blocked in read-only mode)
 	go func() {
 		defer finish()
 		for {
@@ -170,7 +175,9 @@ func runSession(conn net.Conn, from string) {
 			}
 			switch msgType {
 			case protocol.MsgInput:
-				ptmx.Write(payload)
+				if !readOnly {
+					ptmx.Write(payload)
+				}
 			case protocol.MsgResize:
 				if len(payload) == 4 {
 					resize := protocol.DecodeResize(payload)

@@ -22,7 +22,8 @@ func Connect(addr string, code string) error {
 		return fmt.Errorf("failed to send auth: %w", err)
 	}
 
-	// Wait for auth response (may get MsgPending first)
+	// Wait for auth response (may get MsgPending / MsgReadOnly first)
+	readOnly := false
 	for {
 		msgType, payload, err := protocol.ReadMessage(conn)
 		if err != nil {
@@ -32,13 +33,21 @@ func Connect(addr string, code string) error {
 			fmt.Println("Waiting for host approval...")
 			continue
 		}
+		if msgType == protocol.MsgReadOnly {
+			readOnly = true
+			continue
+		}
 		if msgType == protocol.MsgAuthFail {
 			return fmt.Errorf("connection rejected: %s", string(payload))
 		}
 		break // MsgAuthOK
 	}
 
-	fmt.Println("Connected. Press Ctrl+\\ to disconnect.")
+	if readOnly {
+		fmt.Println("Connected (read-only). Press Ctrl+\\ to disconnect.")
+	} else {
+		fmt.Println("Connected. Press Ctrl+\\ to disconnect.")
+	}
 
 	// Put local terminal in raw mode
 	fd := int(os.Stdin.Fd())

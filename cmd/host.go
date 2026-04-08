@@ -11,6 +11,7 @@ import (
 
 	"github.com/ashutoshsinghai/termshare/internal/discovery"
 	"github.com/ashutoshsinghai/termshare/internal/host"
+	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +40,27 @@ func runHost(cmd *cobra.Command, args []string) error {
 		cancel()
 	}()
 
-	fmt.Println("termshare — hosting session")
+	// Ask host to choose session mode
+	modePrompt := promptui.Select{
+		Label: "Session mode",
+		Items: []string{
+			"Read + Write  (client can type)",
+			"Read only     (client can only watch)",
+		},
+	}
+	modeIdx, _, err := modePrompt.Run()
+	if err != nil {
+		return fmt.Errorf("cancelled")
+	}
+	readOnly := modeIdx == 1
+
+	modeLabel := "read+write"
+	if readOnly {
+		modeLabel = "read-only"
+	}
+
+	fmt.Println("\ntermshare — hosting session")
+	fmt.Printf("Mode      : %s\n", modeLabel)
 	fmt.Printf("Join code : %s\n", code)
 	fmt.Printf("Port      : %d\n\n", defaultPort)
 	fmt.Println("Waiting for a connection... (Ctrl+C to stop)")
@@ -50,7 +71,7 @@ func runHost(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	return host.Start(ctx, defaultPort, code)
+	return host.Start(ctx, defaultPort, code, readOnly)
 }
 
 func generateCode() (string, error) {
