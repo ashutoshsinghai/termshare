@@ -16,6 +16,7 @@ func Execute() error {
 }
 
 func init() {
+	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 	rootCmd.AddCommand(hostCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(joinCmd)
