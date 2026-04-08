@@ -69,10 +69,19 @@ Download the binary for your platform from the [latest release](https://github.c
 termshare host
 ```
 
-Starts a shell session and prints a join code. Anyone on the same network can join using that code.
+Starts a shell session and prints a join code. You'll first be asked to choose a session mode:
+
+```
+Session mode:
+❯ Read + Write  (client can type)
+  Read only     (client can only watch)
+```
+
+Then the session starts:
 
 ```
 termshare — hosting session
+Mode      : read-only
 Join code : A3F9K2
 Port      : 4321
 
@@ -85,7 +94,10 @@ When someone tries to join, you'll see a prompt:
 [?] Connection request from 192.168.1.8 — approve? [y/N]:
 ```
 
-Type `y` to accept. Both of you will share the same terminal session.
+Type `y` to accept.
+
+- **Read + Write** — both host and client share the same shell. Either can type.
+- **Read only** — client sees everything but their input is ignored. Useful for demos, teaching, or walkthroughs.
 
 ---
 
@@ -106,17 +118,32 @@ Available sessions:
 
 ### Join a session
 
+The simplest way — just run with no args and pick from a dropdown:
+
 ```sh
-termshare join <host:port> -c <join-code>
+termshare join
 ```
 
-Example:
+Or even shorter:
+
+```sh
+termshare
+```
+
+This scans the LAN, shows available sessions, and prompts for the join code.
+
+For direct connect:
 
 ```sh
 termshare join 192.168.1.5:4321 -c A3F9K2
 ```
 
-Once approved by the host, you'll share their terminal in real time.
+Once approved by the host, you'll see:
+
+```
+Connected.            ← read+write mode
+Connected (read-only). ← read-only mode
+```
 
 > Press `Ctrl+\` to disconnect without closing the remote session.
 
@@ -160,7 +187,8 @@ go build -o termshare .
 
 ## Roadmap
 
+- [x] Read-only viewer mode
+- [ ] Encryption (TLS)
 - [ ] mDNS fallback to port scan for networks that block multicast
-- [ ] Read-only viewer mode
 - [ ] Multi-user sessions
 - [ ] Internet relay (WebRTC)

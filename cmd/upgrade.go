@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -168,7 +169,14 @@ func installVersion(version string) error {
 		return err
 	}
 	if err := os.Rename(tmp.Name(), exe); err != nil {
-		return fmt.Errorf("failed to replace binary (try with sudo): %w", err)
+		if !os.IsPermission(err) {
+			return fmt.Errorf("failed to replace binary: %w", err)
+		}
+		// Permission denied — retry with sudo
+		fmt.Println("Permission denied. Retrying with sudo...")
+		if sudoErr := sudoMove(tmp.Name(), exe); sudoErr != nil {
+			return fmt.Errorf("sudo failed: %w", sudoErr)
+		}
 	}
 
 	// Remove macOS quarantine
@@ -234,6 +242,14 @@ func extractFromZip(r io.Reader, dst *os.File) error {
 		}
 	}
 	return fmt.Errorf("termshare.exe not found in zip")
+}
+
+func sudoMove(src, dst string) error {
+	cmd := osexec.Command("sudo", "mv", src, dst)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func copyFile(src, dst string) error {
