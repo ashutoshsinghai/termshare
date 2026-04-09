@@ -42,7 +42,10 @@ func runSession(conn net.Conn, from string, readOnly bool) {
 		fmt.Fprintf(os.Stderr, "failed to create pty: %v\n", err)
 		return
 	}
-	defer ptmx.Close()
+	// Guard against double-close (defer + Wait goroutine both closing ptmx).
+	var ptyCloseOnce sync.Once
+	closePty := func() { ptyCloseOnce.Do(func() { ptmx.Close() }) }
+	defer closePty()
 
 	if err := ptmx.Resize(cols, rows); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to resize pty: %v\n", err)
@@ -76,6 +79,14 @@ func runSession(conn net.Conn, from string, readOnly bool) {
 	done := make(chan struct{})
 	var once sync.Once
 	finish := func() { once.Do(func() { close(done) }) }
+
+	// When the shell process exits, force-close the PTY so ptmx.Read()
+	// unblocks and the output goroutine can return and call finish().
+	go func() {
+		cmd.Wait()
+		closePty()
+		finish()
+	}()
 
 	// PTY output → host stdout + client
 	go func() {
