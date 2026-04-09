@@ -155,11 +155,20 @@ func installVersion(version string) error {
 	exe, _ = filepath.EvalSymlinks(exe)
 
 	if goos == "windows" {
-		// Can't replace a running binary on Windows — place next to it
+		// Can't replace a running binary on Windows — write a batch script
+		// that swaps the files after this process exits.
 		newPath := strings.TrimSuffix(exe, ".exe") + ".new.exe"
 		if err := copyFile(tmp.Name(), newPath); err != nil {
 			return err
 		}
+		batPath := strings.TrimSuffix(exe, ".exe") + "-upgrade.bat"
+		bat := fmt.Sprintf("@echo off\r\ntimeout /t 2 /nobreak >nul\r\nmove /y \"%s\" \"%s\"\r\ndel \"%%~f0\"\r\n", newPath, exe)
+		if err := os.WriteFile(batPath, []byte(bat), 0644); err == nil {
+			osexec.Command("cmd", "/C", "start", "/min", batPath).Start() //nolint
+			fmt.Printf("\ntermshare upgraded to %s — restart your terminal to use the new version.\n", version)
+			return nil
+		}
+		// Fallback: couldn't write batch script
 		fmt.Printf("\nDownloaded to %s\n", newPath)
 		fmt.Println("Rename it to termshare.exe to complete the upgrade.")
 		return nil

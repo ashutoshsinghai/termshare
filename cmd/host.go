@@ -53,6 +53,7 @@ func runHost(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cancelled")
 	}
 	readOnly := modeIdx == 1
+	fmt.Println() // flush promptui cursor to a clean line (needed on Windows)
 
 	modeLabel := "read+write"
 	if readOnly {
