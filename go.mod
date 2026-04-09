@@ -3,6 +3,7 @@ module github.com/ashutoshsinghai/termshare
 go 1.26.1
 
 require (
+	github.com/aymanbagabas/go-pty v0.2.2 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/creack/pty v1.1.24 // indirect
@@ -12,6 +13,7 @@ require (
 	github.com/miekg/dns v1.1.27 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/u-root/u-root v0.11.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
