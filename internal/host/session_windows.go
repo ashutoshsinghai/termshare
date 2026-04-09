@@ -10,6 +10,7 @@ import (
 
 	gopty "github.com/aymanbagabas/go-pty"
 	"github.com/ashutoshsinghai/termshare/internal/protocol"
+	"golang.org/x/sys/windows"
 	"golang.org/x/term"
 )
 
@@ -55,6 +56,15 @@ func runSession(conn net.Conn, from string, readOnly bool) {
 		return
 	}
 	defer cmd.Process.Kill()
+
+	// Enable VT processing on stdout so ANSI escape sequences from ConPTY
+	// are rendered by the Windows console rather than printed as literal text.
+	stdout := windows.Handle(os.Stdout.Fd())
+	var oldOutMode uint32
+	if err := windows.GetConsoleMode(stdout, &oldOutMode); err == nil {
+		windows.SetConsoleMode(stdout, oldOutMode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+		defer windows.SetConsoleMode(stdout, oldOutMode)
+	}
 
 	oldState, err := term.MakeRaw(fd)
 	if err != nil {
